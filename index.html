@@ -1,0 +1,1498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VTT Editor</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #1a1d24;
+    --panel-2: #232733;
+    --accent: #4f8cff;
+    --text: #e6e8ee;
+    --muted: #8b91a1;
+    --border: #2c313c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+  header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+  }
+  header h1 {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0;
+    margin-right: auto;
+    letter-spacing: 0.02em;
+  }
+  .file-group {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .file-slot {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .file-slot label {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .file-btn-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  button {
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    white-space: nowrap;
+  }
+  button:hover:not(:disabled) { background: #2f3542; border-color: #3a4150; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  button.accent { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.accent:hover:not(:disabled) { background: #3d78e8; }
+  .filename {
+    font-size: 12px;
+    color: var(--muted);
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  main {
+    flex: 1;
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+    padding: 20px;
+    gap: 16px;
+    min-height: 0;
+  }
+  .sidebar {
+    width: 340px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-height: 0;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+  }
+  /* Voices panel sizes to its content, up to ~40% of the sidebar. */
+  .panel.voices {
+    flex: 0 1 auto;
+    max-height: 40%;
+  }
+  /* Cues panel takes the remaining space. */
+  .panel.cues {
+    flex: 1 1 auto;
+  }
+  .panel-head {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .panel-head .count {
+    font-weight: 400;
+    background: var(--panel-2);
+    border-radius: 10px;
+    padding: 2px 8px;
+    font-size: 11px;
+  }
+  .panel-body {
+    overflow-y: auto;
+    padding: 8px;
+    flex: 1;
+  }
+  .panel-body .placeholder {
+    color: var(--muted);
+    font-size: 12px;
+    padding: 16px 8px;
+    text-align: center;
+  }
+  .voice-item {
+    padding: 10px 10px;
+    border-radius: 8px;
+    margin-bottom: 6px;
+    background: var(--panel-2);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .voice-name {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .voice-swatch {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    flex-shrink: 0;
+    border: 1px solid rgba(255,255,255,0.2);
+  }
+  .voice-meta {
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .voice-styles {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11px;
+    color: #b9c0d0;
+    background: rgba(0,0,0,0.25);
+    border-radius: 6px;
+    padding: 6px 8px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    line-height: 1.4;
+  }
+  .cue-item {
+    padding: 8px 10px;
+    border-radius: 8px;
+    margin-bottom: 6px;
+    background: var(--panel-2);
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .cue-item:hover { border-color: #3a4150; }
+  .cue-item.active { border-color: var(--accent); background: #263047; }
+  .cue-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+  .cue-time {
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    color: var(--accent);
+    white-space: nowrap;
+  }
+  .cue-id {
+    font-size: 10px;
+    color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .cue-text {
+    font-size: 12px;
+    line-height: 1.35;
+    margin-bottom: 6px;
+    color: var(--text);
+  }
+  .cue-text .vspeaker { color: var(--accent); font-weight: 600; }
+  .cue-settings {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .setting-tag {
+    font-size: 10px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    background: rgba(0,0,0,0.3);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 2px 6px;
+    color: #c8cede;
+    white-space: nowrap;
+  }
+  .setting-tag .k { color: var(--muted); }
+  .setting-tag.editable {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 5px;
+  }
+  .setting-input {
+    background: rgba(0,0,0,0.35);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: #eef1f7;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 10px;
+    padding: 2px 4px;
+    max-width: 74px;
+  }
+  .setting-input:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
+  .setting-input:disabled { opacity: 0.5; }
+  select.setting-input { padding: 2px; }
+  .style-editor {
+    margin-top: 4px;
+  }
+  .style-selector {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 10px;
+    color: var(--accent);
+    margin-bottom: 3px;
+    word-break: break-all;
+  }
+  .style-input {
+    width: 100%;
+    background: rgba(0,0,0,0.3);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: #d7dcea;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11px;
+    line-height: 1.4;
+    padding: 6px 8px;
+    resize: vertical;
+  }
+  .style-input:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
+  .content-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    min-width: 0;
+  }
+  .player-wrap {
+    width: 100%;
+    max-width: 1000px;
+    background: #000;
+    border-radius: 12px;
+    overflow: hidden;
+    position: relative;
+  }
+  video {
+    width: 100%;
+    display: block;
+    background: #000;
+    aspect-ratio: 16 / 9;
+  }
+  video::cue {
+    background: rgba(0,0,0,0.75);
+    color: #fff;
+    font-size: 1.05em;
+  }
+  .controls {
+    width: 100%;
+    max-width: 1000px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .timeline-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .time {
+    font-variant-numeric: tabular-nums;
+    font-size: 12px;
+    color: var(--muted);
+    min-width: 44px;
+    text-align: center;
+  }
+  input[type="range"].seek {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--panel-2);
+    cursor: pointer;
+    outline: none;
+  }
+  input[type="range"].seek::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+  }
+  input[type="range"].seek::-moz-range-thumb {
+    width: 15px;
+    height: 15px;
+    border: none;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+  }
+  .buttons-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .icon-btn {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    font-size: 16px;
+  }
+  .spacer { flex: 1; }
+  .vol-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  input[type="range"].vol {
+    width: 90px;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 5px;
+    border-radius: 3px;
+    background: var(--panel-2);
+    cursor: pointer;
+    outline: none;
+  }
+  input[type="range"].vol::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+  }
+  input[type="range"].vol::-moz-range-thumb {
+    width: 13px;
+    height: 13px;
+    border: none;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+  }
+  select {
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .empty {
+    color: var(--muted);
+    font-size: 14px;
+    text-align: center;
+    padding: 40px 20px;
+  }
+  .hint {
+    font-size: 11px;
+    color: var(--muted);
+    max-width: 1000px;
+    width: 100%;
+    line-height: 1.5;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>VTT Editor</h1>
+  <div class="file-group">
+    <div class="file-slot">
+      <label>Video (mp4)</label>
+      <div class="file-btn-row">
+        <button id="pickVideo">Choose MP4</button>
+        <span class="filename" id="videoName">no file</span>
+      </div>
+    </div>
+    <div class="file-slot">
+      <label>Subtitles (vtt)</label>
+      <div class="file-btn-row">
+        <button id="pickVtt">Choose VTT</button>
+        <span class="filename" id="vttName">no file</span>
+      </div>
+    </div>
+    <div class="file-slot">
+      <label>&nbsp;</label>
+      <div class="file-btn-row">
+        <button id="refresh" class="accent" title="Reload both files from disk (discards edits)">↻ Refresh</button>
+        <button id="export" title="Save your edits to a .vtt file" disabled>⬇ Export VTT</button>
+        <button id="saveBack" title="Overwrite the original .vtt file with your edits" disabled>💾 Save</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <aside class="sidebar">
+    <div class="panel voices">
+      <div class="panel-head">
+        <span>Voices &amp; Styles</span>
+        <span class="count" id="voiceCount">0</span>
+      </div>
+      <div class="panel-body" id="voicePanel">
+        <div class="placeholder">Load a VTT file to see voices and the styles that apply to them.</div>
+      </div>
+    </div>
+    <div class="panel cues">
+      <div class="panel-head">
+        <span>Cues &amp; Positioning</span>
+        <span class="count" id="cueCount">0</span>
+      </div>
+      <div class="panel-body" id="cuePanel">
+        <div class="placeholder">Load a VTT file to see each cue and its positioning settings.</div>
+      </div>
+    </div>
+  </aside>
+
+  <div class="content-col">
+  <div class="player-wrap">
+    <video id="video" playsinline crossorigin="anonymous"></video>
+  </div>
+
+  <div class="controls">
+    <div class="timeline-row">
+      <span class="time" id="curTime">0:00</span>
+      <input type="range" class="seek" id="seek" min="0" max="1000" value="0" step="1" disabled>
+      <span class="time" id="durTime">0:00</span>
+    </div>
+    <div class="buttons-row">
+      <button class="icon-btn" id="playPause" disabled title="Play/Pause (Space)">▶</button>
+      <button class="icon-btn" id="back10" disabled title="Back 10s">⟲</button>
+      <button class="icon-btn" id="fwd10" disabled title="Forward 10s">⟳</button>
+
+      <div class="vol-row">
+        <button class="icon-btn" id="mute" disabled title="Mute">🔊</button>
+        <input type="range" class="vol" id="vol" min="0" max="1" step="0.01" value="1" disabled>
+      </div>
+
+      <div class="spacer"></div>
+
+      <select id="rate" title="Playback speed" disabled>
+        <option value="0.5">0.5×</option>
+        <option value="0.75">0.75×</option>
+        <option value="1" selected>1×</option>
+        <option value="1.25">1.25×</option>
+        <option value="1.5">1.5×</option>
+        <option value="2">2×</option>
+      </select>
+
+      <select id="subToggle" title="Subtitles" disabled>
+        <option value="showing">Subtitles on</option>
+        <option value="hidden">Subtitles off</option>
+      </select>
+
+      <button class="icon-btn" id="fullscreen" disabled title="Fullscreen (F)">⛶</button>
+    </div>
+  </div>
+
+  <p class="hint" id="hint">
+    Select an MP4 and a VTT file to begin. Both stay linked to their location on disk, so after you edit the VTT
+    (or swap the video) just hit <strong>Refresh</strong> to reload the latest version. Keyboard: Space = play/pause,
+    ← / → = seek 5s, F = fullscreen.
+  </p>
+  </div>
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  const video = document.getElementById("video");
+  const pickVideoBtn = document.getElementById("pickVideo");
+  const pickVttBtn = document.getElementById("pickVtt");
+  const refreshBtn = document.getElementById("refresh");
+  const exportBtn = document.getElementById("export");
+  const saveBackBtn = document.getElementById("saveBack");
+  const videoName = document.getElementById("videoName");
+  const vttName = document.getElementById("vttName");
+
+  const seek = document.getElementById("seek");
+  const curTime = document.getElementById("curTime");
+  const durTime = document.getElementById("durTime");
+  const playPause = document.getElementById("playPause");
+  const back10 = document.getElementById("back10");
+  const fwd10 = document.getElementById("fwd10");
+  const muteBtn = document.getElementById("mute");
+  const vol = document.getElementById("vol");
+  const rate = document.getElementById("rate");
+  const subToggle = document.getElementById("subToggle");
+  const fullscreenBtn = document.getElementById("fullscreen");
+
+  const voicePanel = document.getElementById("voicePanel");
+  const cuePanel = document.getElementById("cuePanel");
+  const voiceCount = document.getElementById("voiceCount");
+  const cueCount = document.getElementById("cueCount");
+
+  // File System Access API handles (when available) let us re-read from disk.
+  let videoHandle = null;
+  let vttHandle = null;
+  // Fallback: plain File objects from <input>.
+  let videoFile = null;
+  let vttFile = null;
+
+  let videoURL = null;
+  let vttURL = null;
+  const hasFSAccess = typeof window.showOpenFilePicker === "function";
+
+  // Live editing state.
+  let currentParsed = null;          // last parsed VTT { styleBlocks, cues }
+  let liveCues = [];                 // browser VTTCue objects, index-aligned to currentParsed.cues
+  // A stylesheet we own and rewrite when the user edits voice/style CSS.
+  const liveStyle = document.createElement("style");
+  liveStyle.id = "liveCueStyles";
+  document.head.appendChild(liveStyle);
+
+  // Hidden inputs for the fallback path.
+  const videoInput = document.createElement("input");
+  videoInput.type = "file";
+  videoInput.accept = "video/mp4,video/*";
+  const vttInput = document.createElement("input");
+  vttInput.type = "file";
+  vttInput.accept = ".vtt,text/vtt";
+
+  function fmtTime(s) {
+    if (!isFinite(s) || s < 0) s = 0;
+    const total = Math.floor(s);
+    const h = Math.floor(total / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    const sec = total % 60;
+    if (h > 0) {
+      return h + ":" + String(m).padStart(2, "0") + ":" + String(sec).padStart(2, "0");
+    }
+    return m + ":" + String(sec).padStart(2, "0");
+  }
+
+  function setControlsEnabled(on) {
+    [seek, playPause, back10, fwd10, muteBtn, vol, rate, fullscreenBtn].forEach(function (el) {
+      el.disabled = !on;
+    });
+  }
+
+  function revoke(url) {
+    if (url) {
+      try { URL.revokeObjectURL(url); } catch (e) {}
+    }
+  }
+
+  // ---- Loading video ----
+  async function loadVideo() {
+    if (!videoFile) return;
+    const wasPlaying = !video.paused && video.currentTime > 0;
+    const prevTime = video.currentTime;
+
+    revoke(videoURL);
+    videoURL = URL.createObjectURL(videoFile);
+    video.src = videoURL;
+    videoName.textContent = videoFile.name;
+    video.load();
+
+    // Restore position if it's likely the same video being refreshed.
+    video.addEventListener("loadedmetadata", function once() {
+      video.removeEventListener("loadedmetadata", once);
+      if (prevTime > 0 && prevTime < video.duration) {
+        video.currentTime = prevTime;
+        if (wasPlaying) video.play().catch(function () {});
+      }
+    });
+    setControlsEnabled(true);
+  }
+
+  // ---- Loading VTT ----
+  async function loadVtt() {
+    if (!vttFile) return;
+    // Remove existing tracks.
+    Array.prototype.slice.call(video.querySelectorAll("track")).forEach(function (t) {
+      t.remove();
+    });
+    revoke(vttURL);
+    vttURL = URL.createObjectURL(vttFile);
+
+    const track = document.createElement("track");
+    track.kind = "subtitles";
+    track.label = "Subtitles";
+    track.srclang = "en";
+    track.src = vttURL;
+    track.default = true;
+    video.appendChild(track);
+    vttName.textContent = vttFile.name;
+
+    // Force the track to show once ready, and capture the live VTTCue objects
+    // so the positioning editors can mutate them directly.
+    track.addEventListener("load", function () {
+      const tt = track.track || video.textTracks[video.textTracks.length - 1];
+      if (tt) {
+        tt.mode = subToggle.value === "hidden" ? "hidden" : "showing";
+        liveCues = tt.cues ? Array.prototype.slice.call(tt.cues) : [];
+        // Re-render the cue panel now that live cues exist, so inputs can bind.
+        if (currentParsed) renderCues(currentParsed);
+      }
+    });
+    subToggle.disabled = false;
+
+    // Parse the raw text ourselves for the analysis panels — the browser's
+    // TextTrack API does not expose STYLE blocks or the raw cue settings.
+    try {
+      const text = await vttFile.text();
+      currentParsed = parseVtt(text);
+      liveCues = []; // reset until track "load" fires
+      renderVoices(currentParsed);
+      renderCues(currentParsed);
+      rebuildLiveStyles();
+      exportBtn.disabled = false;
+      // Direct overwrite is only possible with a writable file handle.
+      saveBackBtn.disabled = !(hasFSAccess && vttHandle);
+    } catch (e) {
+      console.warn("Could not parse VTT for panels", e);
+    }
+  }
+
+  // ---- File pickers ----
+  async function pickVideo() {
+    if (hasFSAccess) {
+      try {
+        const [handle] = await window.showOpenFilePicker({
+          types: [{ description: "MP4 video", accept: { "video/mp4": [".mp4", ".m4v", ".mov", ".webm"] } }],
+          multiple: false
+        });
+        videoHandle = handle;
+        videoFile = await handle.getFile();
+      } catch (e) { return; } // user cancelled
+    } else {
+      videoInput.click();
+      return;
+    }
+    await loadVideo();
+  }
+
+  async function pickVtt() {
+    if (hasFSAccess) {
+      try {
+        const [handle] = await window.showOpenFilePicker({
+          types: [{ description: "WebVTT subtitles", accept: { "text/vtt": [".vtt"] } }],
+          multiple: false
+        });
+        vttHandle = handle;
+        vttFile = await handle.getFile();
+      } catch (e) { return; }
+    } else {
+      vttInput.click();
+      return;
+    }
+    await loadVtt();
+  }
+
+  videoInput.addEventListener("change", async function () {
+    if (videoInput.files && videoInput.files[0]) {
+      videoFile = videoInput.files[0];
+      await loadVideo();
+    }
+  });
+  vttInput.addEventListener("change", async function () {
+    if (vttInput.files && vttInput.files[0]) {
+      vttFile = vttInput.files[0];
+      await loadVtt();
+    }
+  });
+
+  // ---- Refresh: re-read from disk ----
+  async function refresh() {
+    let refreshed = false;
+    if (hasFSAccess) {
+      if (videoHandle) {
+        try {
+          videoFile = await videoHandle.getFile();
+          await loadVideo();
+          refreshed = true;
+        } catch (e) { console.warn("Could not re-read video", e); }
+      }
+      if (vttHandle) {
+        try {
+          vttFile = await vttHandle.getFile();
+          await loadVtt();
+          refreshed = true;
+        } catch (e) { console.warn("Could not re-read vtt", e); }
+      }
+    }
+    if (!refreshed) {
+      // Fallback path can't silently re-read; reload from cached File objects
+      // (VTT edits won't be picked up without re-choosing the file).
+      if (videoFile) await loadVideo();
+      if (vttFile) await loadVtt();
+      if (!hasFSAccess && (videoFile || vttFile)) {
+        flash(refreshBtn, "Re-choose files to pick up disk edits");
+      }
+    }
+  }
+
+  let flashTimer = null;
+  function flash(btn, msg) {
+    const original = btn.textContent;
+    btn.textContent = msg;
+    clearTimeout(flashTimer);
+    flashTimer = setTimeout(function () { btn.textContent = original; }, 2200);
+  }
+
+  // ---- Wire up buttons ----
+  pickVideoBtn.addEventListener("click", pickVideo);
+  pickVttBtn.addEventListener("click", pickVtt);
+  refreshBtn.addEventListener("click", refresh);
+  exportBtn.addEventListener("click", exportVtt);
+  saveBackBtn.addEventListener("click", saveBack);
+
+  function currentVttText() {
+    if (!currentParsed) return null;
+    return serializeVtt(currentParsed);
+  }
+
+  function suggestedName() {
+    const base = (vttFile && vttFile.name ? vttFile.name : "subtitles.vtt").replace(/\.vtt$/i, "");
+    return base + ".edited.vtt";
+  }
+
+  // Download a new .vtt file (works in every browser).
+  async function exportVtt() {
+    const text = currentVttText();
+    if (text == null) return;
+
+    // Prefer a Save dialog when the File System Access API is available.
+    if (hasFSAccess && typeof window.showSaveFilePicker === "function") {
+      try {
+        const handle = await window.showSaveFilePicker({
+          suggestedName: suggestedName(),
+          types: [{ description: "WebVTT subtitles", accept: { "text/vtt": [".vtt"] } }]
+        });
+        const writable = await handle.createWritable();
+        await writable.write(text);
+        await writable.close();
+        flash(exportBtn, "✓ Saved");
+        return;
+      } catch (e) {
+        if (e && e.name === "AbortError") return; // user cancelled
+        // fall through to blob download
+      }
+    }
+
+    const blob = new Blob([text], { type: "text/vtt" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = suggestedName();
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    flash(exportBtn, "✓ Downloaded");
+  }
+
+  // Overwrite the originally-opened .vtt file in place.
+  async function saveBack() {
+    const text = currentVttText();
+    if (text == null || !vttHandle) return;
+    try {
+      // Ensure we still have write permission.
+      if (vttHandle.requestPermission) {
+        const perm = await vttHandle.requestPermission({ mode: "readwrite" });
+        if (perm !== "granted") {
+          flash(saveBackBtn, "✗ Permission denied");
+          return;
+        }
+      }
+      const writable = await vttHandle.createWritable();
+      await writable.write(text);
+      await writable.close();
+      // Refresh our cached File so a later Refresh doesn't revert the view.
+      vttFile = await vttHandle.getFile();
+      flash(saveBackBtn, "✓ Saved");
+    } catch (e) {
+      console.warn("Save failed", e);
+      flash(saveBackBtn, "✗ Save failed");
+    }
+  }
+
+  playPause.addEventListener("click", togglePlay);
+  video.addEventListener("click", togglePlay);
+  back10.addEventListener("click", function () { skip(-10); });
+  fwd10.addEventListener("click", function () { skip(10); });
+
+  function togglePlay() {
+    if (!video.src) return;
+    if (video.paused) video.play().catch(function () {});
+    else video.pause();
+  }
+  function skip(delta) {
+    if (!video.src) return;
+    video.currentTime = Math.min(Math.max(0, video.currentTime + delta), video.duration || 0);
+  }
+
+  video.addEventListener("play", function () { playPause.textContent = "❚❚"; });
+  video.addEventListener("pause", function () { playPause.textContent = "▶"; });
+
+  // ---- Timeline ----
+  let seeking = false;
+  video.addEventListener("loadedmetadata", function () {
+    durTime.textContent = fmtTime(video.duration);
+  });
+  video.addEventListener("timeupdate", function () {
+    if (!seeking && video.duration) {
+      seek.value = String((video.currentTime / video.duration) * 1000);
+      curTime.textContent = fmtTime(video.currentTime);
+    }
+  });
+  seek.addEventListener("input", function () {
+    seeking = true;
+    if (video.duration) {
+      const t = (seek.value / 1000) * video.duration;
+      curTime.textContent = fmtTime(t);
+    }
+  });
+  seek.addEventListener("change", function () {
+    if (video.duration) {
+      video.currentTime = (seek.value / 1000) * video.duration;
+    }
+    seeking = false;
+  });
+
+  // ---- Volume ----
+  vol.addEventListener("input", function () {
+    video.volume = parseFloat(vol.value);
+    video.muted = video.volume === 0;
+    updateMuteIcon();
+  });
+  muteBtn.addEventListener("click", function () {
+    video.muted = !video.muted;
+    if (!video.muted && video.volume === 0) {
+      video.volume = 0.5;
+      vol.value = "0.5";
+    }
+    updateMuteIcon();
+  });
+  function updateMuteIcon() {
+    muteBtn.textContent = (video.muted || video.volume === 0) ? "🔇" : "🔊";
+  }
+
+  // ---- Rate ----
+  rate.addEventListener("change", function () {
+    video.playbackRate = parseFloat(rate.value);
+  });
+
+  // ---- Subtitles toggle ----
+  subToggle.addEventListener("change", function () {
+    const tracks = video.textTracks;
+    for (let i = 0; i < tracks.length; i++) {
+      tracks[i].mode = subToggle.value === "hidden" ? "hidden" : "showing";
+    }
+  });
+
+  // ---- Fullscreen ----
+  const playerWrap = document.querySelector(".player-wrap");
+  fullscreenBtn.addEventListener("click", toggleFullscreen);
+  function toggleFullscreen() {
+    if (document.fullscreenElement) {
+      document.exitFullscreen();
+    } else if (playerWrap.requestFullscreen) {
+      playerWrap.requestFullscreen();
+    } else if (video.webkitEnterFullscreen) {
+      video.webkitEnterFullscreen(); // iOS Safari
+    }
+  }
+
+  // ---- Keyboard shortcuts ----
+  document.addEventListener("keydown", function (e) {
+    if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
+    if (!video.src) return;
+    switch (e.key) {
+      case " ":
+      case "k":
+        e.preventDefault(); togglePlay(); break;
+      case "ArrowLeft":
+        e.preventDefault(); skip(-5); break;
+      case "ArrowRight":
+        e.preventDefault(); skip(5); break;
+      case "f":
+        e.preventDefault(); toggleFullscreen(); break;
+      case "m":
+        e.preventDefault(); muteBtn.click(); break;
+    }
+  });
+
+  // ============================================================
+  //  VTT parsing for the analysis panels
+  // ============================================================
+
+  function parseTimestamp(ts) {
+    // hh:mm:ss.mmm  or  mm:ss.mmm
+    const m = ts.trim().match(/(?:(\d+):)?(\d{1,2}):(\d{2})\.(\d{1,3})/);
+    if (!m) return null;
+    const h = m[1] ? parseInt(m[1], 10) : 0;
+    const min = parseInt(m[2], 10);
+    const sec = parseInt(m[3], 10);
+    const ms = parseInt((m[4] + "000").slice(0, 3), 10);
+    return h * 3600 + min * 60 + sec + ms / 1000;
+  }
+
+  // Parse the "settings" portion after a cue's timing line, e.g.
+  //   line:90% position:50% align:center size:80% region:r1 vertical:rl
+  function parseCueSettings(str) {
+    const out = {};
+    if (!str) return out;
+    str.trim().split(/\s+/).forEach(function (pair) {
+      const idx = pair.indexOf(":");
+      if (idx > 0) {
+        const key = pair.slice(0, idx);
+        const val = pair.slice(idx + 1);
+        out[key] = val;
+      }
+    });
+    return out;
+  }
+
+  // Extract <v Name> speaker(s) and any inline class tags <c.classname>.
+  function extractVoicesAndClasses(payload) {
+    const voices = [];
+    const classes = new Set();
+    let m;
+    const vRe = /<v(\.[^\s>]+)?\s+([^>]+)>/g;
+    while ((m = vRe.exec(payload)) !== null) {
+      const name = m[2].trim();
+      if (name) voices.push({ name: name, classes: m[1] ? m[1].slice(1).split(".") : [] });
+    }
+    const cRe = /<c\.([^>\s]+)>/g;
+    while ((m = cRe.exec(payload)) !== null) {
+      m[1].split(".").forEach(function (c) { if (c) classes.add(c); });
+    }
+    return { voices: voices, classes: Array.from(classes) };
+  }
+
+  function parseVtt(text) {
+    // Normalise newlines and strip BOM.
+    text = text.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    const lines = text.split("\n");
+
+    const styleBlocks = []; // { selectors: [], raw: "..." }
+    const cues = [];
+    const regions = [];     // raw REGION block bodies, preserved verbatim
+    const notes = [];       // raw NOTE blocks, preserved verbatim
+    let header = "WEBVTT";
+    let i = 0;
+
+    // Capture the header line (WEBVTT ...) and any header metadata lines.
+    if (lines[i] && /^WEBVTT/.test(lines[i])) {
+      const headerLines = [lines[i]];
+      i++;
+      while (i < lines.length && lines[i].trim() !== "") { headerLines.push(lines[i]); i++; }
+      header = headerLines.join("\n");
+    }
+
+    while (i < lines.length) {
+      let line = lines[i];
+
+      // Skip blank lines between blocks.
+      if (line.trim() === "") { i++; continue; }
+
+      // STYLE block
+      if (/^STYLE\s*$/.test(line.trim())) {
+        i++;
+        const buf = [];
+        while (i < lines.length && lines[i].trim() !== "") {
+          buf.push(lines[i]);
+          i++;
+        }
+        const raw = buf.join("\n");
+        parseStyleBlock(raw).forEach(function (rule) { styleBlocks.push(rule); });
+        continue;
+      }
+
+      // REGION block — preserve verbatim for export.
+      if (/^REGION\s*$/.test(line.trim())) {
+        i++;
+        const buf = [];
+        while (i < lines.length && lines[i].trim() !== "") { buf.push(lines[i]); i++; }
+        regions.push(buf.join("\n"));
+        continue;
+      }
+
+      // NOTE block — preserve verbatim for export.
+      if (/^NOTE\b/.test(line.trim())) {
+        const buf = [line];
+        i++;
+        while (i < lines.length && lines[i].trim() !== "") { buf.push(lines[i]); i++; }
+        notes.push(buf.join("\n"));
+        continue;
+      }
+
+      // Otherwise this is a cue. It may start with an optional identifier line,
+      // then a timing line containing "-->".
+      let id = "";
+      if (line.indexOf("-->") === -1) {
+        id = line.trim();
+        i++;
+        line = lines[i] || "";
+      }
+
+      if (line.indexOf("-->") === -1) { i++; continue; } // malformed, skip
+
+      const arrowIdx = line.indexOf("-->");
+      const startStr = line.slice(0, arrowIdx).trim();
+      const rest = line.slice(arrowIdx + 3).trim();
+      // rest = "endTimestamp [settings...]"
+      const restMatch = rest.match(/^(\S+)\s*(.*)$/);
+      const endStr = restMatch ? restMatch[1] : rest;
+      const settingsStr = restMatch ? restMatch[2] : "";
+      i++;
+
+      const payloadLines = [];
+      while (i < lines.length && lines[i].trim() !== "") {
+        payloadLines.push(lines[i]);
+        i++;
+      }
+      const payload = payloadLines.join("\n");
+      const vc = extractVoicesAndClasses(payload);
+
+      cues.push({
+        id: id,
+        start: parseTimestamp(startStr),
+        end: parseTimestamp(endStr),
+        startStr: startStr,
+        endStr: endStr,
+        settings: parseCueSettings(settingsStr),
+        payload: payload,
+        voices: vc.voices,
+        classes: vc.classes
+      });
+    }
+
+    return { header: header, styleBlocks: styleBlocks, regions: regions, notes: notes, cues: cues };
+  }
+
+  // ---- Serialize the current (edited) state back to WebVTT text ----
+  function serializeVtt(parsed) {
+    const parts = [];
+    parts.push(parsed.header || "WEBVTT");
+
+    // STYLE blocks (reflecting live edits to rule.raw).
+    (parsed.styleBlocks || []).forEach(function (rule) {
+      parts.push("STYLE\n" + rule.selectors.join(",\n") + " {\n" + indentBody(rule.raw) + "\n}");
+    });
+
+    // REGION blocks (verbatim).
+    (parsed.regions || []).forEach(function (r) {
+      parts.push("REGION\n" + r);
+    });
+
+    // NOTE blocks (verbatim).
+    (parsed.notes || []).forEach(function (n) {
+      parts.push(n);
+    });
+
+    // Cues, with edited settings.
+    parsed.cues.forEach(function (cue) {
+      const settingsStr = serializeCueSettings(cue.settings);
+      const timing = cue.startStr + " --> " + cue.endStr + (settingsStr ? " " + settingsStr : "");
+      const block = (cue.id ? cue.id + "\n" : "") + timing + "\n" + cue.payload;
+      parts.push(block);
+    });
+
+    return parts.join("\n\n") + "\n";
+  }
+
+  function indentBody(raw) {
+    return raw.split("\n").map(function (l) { return l.trim() ? "  " + l.trim() : l; }).join("\n");
+  }
+
+  // Emit cue settings in canonical order, skipping empty/auto values.
+  function serializeCueSettings(settings) {
+    const order = ["vertical", "line", "position", "size", "align", "region"];
+    const out = [];
+    order.forEach(function (k) {
+      let v = settings[k];
+      if (v == null) return;
+      v = String(v).trim();
+      if (v === "") return;
+      if ((k === "line" || k === "position") && v.toLowerCase() === "auto") return;
+      if (k === "size" && (v === "100" || v === "100%")) return;
+      out.push(k + ":" + v);
+    });
+    return out.join(" ");
+  }
+
+  // Split a STYLE block into individual rules { selectors:[], raw }.
+  function parseStyleBlock(css) {
+    const rules = [];
+    const re = /([^{}]+)\{([^}]*)\}/g;
+    let m;
+    while ((m = re.exec(css)) !== null) {
+      const selectors = m[1].split(",").map(function (s) { return s.trim(); }).filter(Boolean);
+      const body = m[2].trim().replace(/\s*\n\s*/g, " ").replace(/;\s*/g, ";\n").trim();
+      rules.push({ selectors: selectors, raw: body });
+    }
+    return rules;
+  }
+
+  // A ::cue selector can target a voice via [voice="Name"] or a class via ::cue(.class).
+  // Returns references to the matching rule objects (so editing mutates shared state).
+  function stylesForVoice(name, classes, styleBlocks) {
+    const matches = [];
+    styleBlocks.forEach(function (rule) {
+      let hit = false;
+      rule.selectors.forEach(function (sel) {
+        // ::cue(v[voice="Name"])  or  [voice="Name"]
+        const vm = sel.match(/voice\s*=\s*["']([^"']+)["']/);
+        if (vm && vm[1] === name) hit = true;
+        // class-based: ::cue(.className)
+        if (!hit) {
+          classes.forEach(function (c) {
+            if (new RegExp("\\." + escapeRe(c) + "(?![\\w-])").test(sel)) hit = true;
+          });
+        }
+      });
+      if (hit) matches.push({ selector: rule.selectors.join(", "), raw: rule.raw, rule: rule });
+    });
+    return matches;
+  }
+
+  function escapeRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+
+  function escapeHtml(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  // Deterministic color per voice name for the swatch.
+  function colorForName(name) {
+    let h = 0;
+    for (let k = 0; k < name.length; k++) h = (h * 31 + name.charCodeAt(k)) % 360;
+    return "hsl(" + h + ", 65%, 60%)";
+  }
+
+  // Write all current style blocks into our live stylesheet so edits apply
+  // to the rendered subtitles immediately.
+  function rebuildLiveStyles() {
+    if (!currentParsed) { liveStyle.textContent = ""; return; }
+    const css = currentParsed.styleBlocks.map(function (rule) {
+      return rule.selectors.join(",\n") + " {\n" + rule.raw + "\n}";
+    }).join("\n\n");
+    liveStyle.textContent = css;
+  }
+
+  // Build one editable style-rule block bound to a styleBlock object.
+  function makeStyleEditor(rule) {
+    const wrap = document.createElement("div");
+    wrap.className = "style-editor";
+
+    const sel = document.createElement("div");
+    sel.className = "style-selector";
+    sel.textContent = rule.selectors.join(", ");
+    wrap.appendChild(sel);
+
+    const ta = document.createElement("textarea");
+    ta.className = "style-input";
+    ta.spellcheck = false;
+    ta.value = rule.raw;
+    ta.rows = Math.max(2, rule.raw.split("\n").length);
+    ta.addEventListener("input", function () {
+      rule.raw = ta.value;
+      ta.rows = Math.max(2, ta.value.split("\n").length);
+      rebuildLiveStyles();
+    });
+    wrap.appendChild(ta);
+    return wrap;
+  }
+
+  // ---- Render: Voices & Styles ----
+  function renderVoices(parsed) {
+    const map = new Map(); // name -> { count, classes:Set }
+    parsed.cues.forEach(function (cue) {
+      cue.voices.forEach(function (v) {
+        if (!map.has(v.name)) map.set(v.name, { count: 0, classes: new Set() });
+        const entry = map.get(v.name);
+        entry.count++;
+        v.classes.forEach(function (c) { entry.classes.add(c); });
+      });
+    });
+
+    voiceCount.textContent = String(map.size);
+    voicePanel.innerHTML = "";
+
+    if (map.size === 0) {
+      // No <v> tags. Still surface any global ::cue styling (editable).
+      if (parsed.styleBlocks.length) {
+        const wrap = document.createElement("div");
+        wrap.className = "voice-item";
+        const head = document.createElement("div");
+        head.className = "voice-name";
+        head.textContent = "(no named voices)";
+        wrap.appendChild(head);
+        const meta = document.createElement("div");
+        meta.className = "voice-meta";
+        meta.textContent = parsed.styleBlocks.length + " global style rule(s) — editable";
+        wrap.appendChild(meta);
+        parsed.styleBlocks.forEach(function (rule) {
+          wrap.appendChild(makeStyleEditor(rule));
+        });
+        voicePanel.appendChild(wrap);
+      } else {
+        voicePanel.innerHTML = '<div class="placeholder">No &lt;v&gt; voice tags found in this file.</div>';
+      }
+      return;
+    }
+
+    const names = Array.from(map.keys()).sort(function (a, b) { return a.localeCompare(b); });
+    names.forEach(function (name) {
+      const entry = map.get(name);
+      const classes = Array.from(entry.classes);
+      const styles = stylesForVoice(name, classes, parsed.styleBlocks);
+
+      const item = document.createElement("div");
+      item.className = "voice-item";
+
+      const nameEl = document.createElement("div");
+      nameEl.className = "voice-name";
+      const sw = document.createElement("span");
+      sw.className = "voice-swatch";
+      sw.style.background = colorForName(name);
+      nameEl.appendChild(sw);
+      nameEl.appendChild(document.createTextNode(name));
+      item.appendChild(nameEl);
+
+      const meta = document.createElement("div");
+      meta.className = "voice-meta";
+      meta.textContent = entry.count + " cue" + (entry.count === 1 ? "" : "s") +
+        (classes.length ? " · classes: " + classes.join(", ") : "");
+      item.appendChild(meta);
+
+      if (styles.length) {
+        // styles[] hold references to the same styleBlock objects, so editing
+        // them updates the live stylesheet.
+        styles.forEach(function (s) {
+          item.appendChild(makeStyleEditor(s.rule));
+        });
+      } else {
+        const none = document.createElement("div");
+        none.className = "voice-meta";
+        none.textContent = "No matching STYLE rules.";
+        item.appendChild(none);
+      }
+
+      voicePanel.appendChild(item);
+    });
+  }
+
+  // ---- Render: Cues & Positioning ----
+  const SETTING_KEYS = ["line", "position", "size", "align", "vertical"];
+  const ALIGN_OPTS = ["start", "center", "end", "left", "right"];
+  const VERTICAL_OPTS = [["", "horizontal"], ["rl", "rl (vertical)"], ["lr", "lr (vertical)"]];
+  let cueEls = [];
+
+  // Apply a raw setting value from the panel onto the live VTTCue.
+  // Values mirror WebVTT syntax; we coerce to what the DOM API expects.
+  function applySettingToCue(liveCue, key, rawValue) {
+    if (!liveCue) return;
+    const v = (rawValue || "").trim();
+    try {
+      if (key === "line") {
+        if (v === "" || v.toLowerCase() === "auto") liveCue.line = "auto";
+        else liveCue.line = v.indexOf("%") >= 0 ? parseFloat(v) : parseFloat(v);
+        // snapToLines: percentages are not line-snapped.
+        liveCue.snapToLines = v.indexOf("%") < 0 && v.toLowerCase() !== "auto";
+      } else if (key === "position") {
+        if (v === "" || v.toLowerCase() === "auto") liveCue.position = "auto";
+        else liveCue.position = parseFloat(v);
+      } else if (key === "size") {
+        if (v === "") liveCue.size = 100;
+        else liveCue.size = parseFloat(v);
+      } else if (key === "align") {
+        if (ALIGN_OPTS.indexOf(v) >= 0) liveCue.align = v;
+      } else if (key === "vertical") {
+        liveCue.vertical = (v === "rl" || v === "lr") ? v : "";
+      }
+    } catch (e) {
+      console.warn("Could not apply", key, "=", v, e);
+    }
+  }
+
+  function makeSettingEditor(key, cue, liveCue) {
+    const tag = document.createElement("label");
+    tag.className = "setting-tag editable";
+    const k = document.createElement("span");
+    k.className = "k";
+    k.textContent = key + ":";
+    tag.appendChild(k);
+
+    let input;
+    if (key === "align") {
+      input = document.createElement("select");
+      input.innerHTML = '<option value="">auto</option>' +
+        ALIGN_OPTS.map(function (o) { return '<option value="' + o + '">' + o + "</option>"; }).join("");
+      input.value = cue.settings.align || "";
+    } else if (key === "vertical") {
+      input = document.createElement("select");
+      input.innerHTML = VERTICAL_OPTS.map(function (o) {
+        return '<option value="' + o[0] + '">' + o[1] + "</option>";
+      }).join("");
+      input.value = cue.settings.vertical || "";
+    } else {
+      input = document.createElement("input");
+      input.type = "text";
+      input.placeholder = "auto";
+      input.value = cue.settings[key] != null ? cue.settings[key] : "";
+      input.size = 5;
+    }
+    input.className = "setting-input";
+    input.disabled = !liveCue;
+    if (!liveCue) input.title = "Editable once the video/track has loaded";
+
+    const handler = function () {
+      cue.settings[key] = input.value;
+      applySettingToCue(liveCue, key, input.value);
+    };
+    input.addEventListener("change", handler);
+    if (input.tagName === "INPUT") input.addEventListener("input", handler);
+
+    tag.appendChild(input);
+    return tag;
+  }
+
+  function renderCues(parsed) {
+    cueCount.textContent = String(parsed.cues.length);
+    cuePanel.innerHTML = "";
+    cueEls = [];
+
+    if (parsed.cues.length === 0) {
+      cuePanel.innerHTML = '<div class="placeholder">No cues found in this file.</div>';
+      return;
+    }
+
+    parsed.cues.forEach(function (cue, idx) {
+      const item = document.createElement("div");
+      item.className = "cue-item";
+      item.dataset.start = cue.start != null ? cue.start : "";
+      item.dataset.end = cue.end != null ? cue.end : "";
+
+      const top = document.createElement("div");
+      top.className = "cue-top";
+      const time = document.createElement("span");
+      time.className = "cue-time";
+      time.textContent = cue.startStr + " → " + cue.endStr;
+      top.appendChild(time);
+      if (cue.id) {
+        const idEl = document.createElement("span");
+        idEl.className = "cue-id";
+        idEl.textContent = "#" + cue.id;
+        idEl.title = cue.id;
+        top.appendChild(idEl);
+      }
+      item.appendChild(top);
+
+      const textEl = document.createElement("div");
+      textEl.className = "cue-text";
+      textEl.innerHTML = renderPayload(cue.payload);
+      item.appendChild(textEl);
+
+      const settingsEl = document.createElement("div");
+      settingsEl.className = "cue-settings";
+      const liveCue = liveCues[idx] || null;
+      SETTING_KEYS.forEach(function (k) {
+        settingsEl.appendChild(makeSettingEditor(k, cue, liveCue));
+      });
+      if (cue.settings.region != null) {
+        const rtag = document.createElement("span");
+        rtag.className = "setting-tag";
+        rtag.innerHTML = '<span class="k">region:</span> ' + escapeHtml(cue.settings.region);
+        rtag.title = "Region assignment is read-only";
+        settingsEl.appendChild(rtag);
+      }
+      item.appendChild(settingsEl);
+
+      if (cue.start != null) {
+        item.addEventListener("click", function () {
+          if (!video.src) return;
+          video.currentTime = cue.start;
+          video.play().catch(function () {});
+        });
+      }
+
+      cuePanel.appendChild(item);
+      cueEls.push({ el: item, start: cue.start, end: cue.end });
+    });
+  }
+
+  // Render a cue payload with <v Name> shown as a highlighted speaker label,
+  // stripping other tags for readability.
+  function renderPayload(payload) {
+    let html = escapeHtml(payload);
+    // <v Name> -> speaker span (escaped angle brackets from above)
+    html = html.replace(/&lt;v(?:\.[^\s&]+)?\s+([^&]+?)&gt;/g, function (_, name) {
+      return '<span class="vspeaker">' + name + ":</span> ";
+    });
+    // Remove remaining recognised tags.
+    html = html.replace(/&lt;\/?[\w.]+(?:\s[^&]*?)?&gt;/g, "");
+    return html.replace(/\n/g, "<br>");
+  }
+
+  // Highlight the active cue in the list as the video plays.
+  video.addEventListener("timeupdate", function () {
+    const t = video.currentTime;
+    let activeEl = null;
+    cueEls.forEach(function (c) {
+      const on = c.start != null && c.end != null && t >= c.start && t < c.end;
+      if (on) {
+        if (!c.el.classList.contains("active")) c.el.classList.add("active");
+        activeEl = c.el;
+      } else {
+        c.el.classList.remove("active");
+      }
+    });
+    if (activeEl) {
+      const pr = cuePanel.getBoundingClientRect();
+      const er = activeEl.getBoundingClientRect();
+      if (er.top < pr.top || er.bottom > pr.bottom) {
+        activeEl.scrollIntoView({ block: "nearest" });
+      }
+    }
+  });
+
+  // Init
+  video.volume = 1;
+  updateMuteIcon();
+})();
+</script>
+</body>
+</html>
